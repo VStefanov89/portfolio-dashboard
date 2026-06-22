@@ -3,13 +3,14 @@ import pandas as pd
 
 st.set_page_config(page_title="Portfolio Daily Update", layout="wide")
 
-bucket = "Daily_signals"
-
-portfolio_df = pd.read_csv(f"live_signals_portfolio.csv")
-summary_df = pd.read_csv(f"daily_stats.csv")
+portfolio_df = pd.read_csv("live_signals_portfolio.csv")
+summary_df = pd.read_csv("daily_stats.csv")
 
 portfolio_df["date"] = pd.to_datetime(portfolio_df["date"])
 summary_df["date"] = pd.to_datetime(summary_df["date"])
+
+summary_df = summary_df.sort_values("date").reset_index(drop=True)
+summary_df["cumulative_pnl"] = summary_df["daily_pnl"].cumsum()
 
 latest_date = summary_df["date"].max()
 
@@ -19,19 +20,23 @@ latest_portfolio = portfolio_df[portfolio_df["date"] == latest_date].copy()
 st.title("Daily Portfolio Update")
 st.subheader(f"Date: {latest_date.date()}")
 
-col1, col2, col3 = st.columns(3)
+col1, col2, col3, col4 = st.columns(4)
 
 col1.metric("Daily PnL", f"${latest_summary['daily_pnl']:,.2f}")
-col2.metric("Total BP", f"${latest_summary['total_bp']:,.0f}")
-col3.metric("Open Triplets", f"{len(latest_portfolio):,.0f}")
+col2.metric("Cumulative PnL", f"${latest_summary['cumulative_pnl']:,.2f}")
+col3.metric("Total BP", f"${latest_summary['total_bp']:,.0f}")
+col4.metric("Open Triplets", f"{len(latest_portfolio):,.0f}")
 
 st.divider()
 
 st.subheader("Daily Summary History")
 st.dataframe(summary_df.sort_values("date", ascending=False), width="stretch")
 
-st.subheader("PnL Chart")
+st.subheader("Daily PnL Chart")
 st.line_chart(summary_df.set_index("date")["daily_pnl"])
+
+st.subheader("Cumulative PnL Chart")
+st.line_chart(summary_df.set_index("date")["cumulative_pnl"])
 
 st.subheader("BP Chart")
 st.line_chart(summary_df.set_index("date")["total_bp"])
@@ -45,7 +50,7 @@ show_cols = [
     "ticker1", "ticker2", "ticker3",
     "price1", "price2", "price3",
     "shares1", "shares2", "shares3",
-    "total_bp", 
+    "total_bp",
     "spread", "half_life", "traceT", "critical_vals", "zscore_composed",
     "min_days_to_earnings", "earnings_within_3d",
     "earnings_within_5d", "earnings_within_10d",
