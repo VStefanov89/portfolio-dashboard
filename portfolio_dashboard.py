@@ -45,7 +45,7 @@ show_cols = [
     "ticker1", "ticker2", "ticker3",
     "price1", "price2", "price3",
     "shares1", "shares2", "shares3",
-    "total_bp", "sector_triplet", "industry_triplet",
+    "total_bp", 
     "spread", "half_life", "traceT", "critical_vals", "zscore_composed",
     "min_days_to_earnings", "earnings_within_3d",
     "earnings_within_5d", "earnings_within_10d",
