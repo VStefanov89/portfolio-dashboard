@@ -40,6 +40,7 @@ st.subheader("Latest Portfolio Positions")
 
 show_cols = [
     "date", "uuid", "triplet", "calibrated_tail_p",
+    "sector_triplet", "industry_triplet",
     "GrossPnL", "total_costs", "NetPnL", "daily_pnl",
     "ticker1", "ticker2", "ticker3",
     "price1", "price2", "price3",
