@@ -5,8 +5,8 @@ st.set_page_config(page_title="Portfolio Daily Update", layout="wide")
 
 bucket = "Daily_signals"
 
-portfolio_df = pd.read_csv(f"{bucket}/live_signals_portfolio.csv")
-summary_df = pd.read_csv(f"{bucket}/daily_stats.csv")
+portfolio_df = pd.read_csv(f"live_signals_portfolio.csv")
+summary_df = pd.read_csv(f"daily_stats.csv")
 
 portfolio_df["date"] = pd.to_datetime(portfolio_df["date"])
 summary_df["date"] = pd.to_datetime(summary_df["date"])
