@@ -10,8 +10,17 @@ st.set_page_config(page_title="Portfolio Daily Update", layout="wide")
 live_df = pd.read_csv("live_signals_portfolio.csv")
 closed_df = pd.read_csv("close_signals_historycally.csv")
 
-live_df["date"] = pd.to_datetime(live_df["date"])
-closed_df["date"] = pd.to_datetime(closed_df["date"])
+live_df["date"] = pd.to_datetime(
+    live_df["date"],
+    errors="coerce",
+    format="mixed"
+).dt.normalize()
+
+closed_df["date"] = pd.to_datetime(
+    closed_df["date"],
+    errors="coerce",
+    format="mixed"
+).dt.normalize()
 
 live_df = live_df.sort_values(["date", "uuid"]).reset_index(drop=True)
 closed_df = closed_df.sort_values(["date", "uuid"]).reset_index(drop=True)
