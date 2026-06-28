@@ -17,7 +17,7 @@ for df in [live_df, closed_df, daily_df, realized_df, unrealized_df]:
         format="mixed"
     ).dt.normalize()
 
-daily_df = daily_df[["date", "daily_pnl", "total_bp", "triplet"]].copy()
+daily_df = daily_df[["date", "daily_pnl", "total_bp"]].copy()
 
 realized_df = realized_df[["date", "NetPnL"]].copy()
 realized_df = realized_df.rename(columns={"NetPnL": "realized_daily"})
@@ -35,7 +35,6 @@ summary_df = summary_df.sort_values("date").reset_index(drop=True)
 
 summary_df["daily_pnl"] = summary_df["daily_pnl"].fillna(0)
 summary_df["total_bp"] = summary_df["total_bp"].fillna(0)
-summary_df["triplet"] = summary_df["triplet"].fillna(0).astype(int)
 summary_df["realized_daily"] = summary_df["realized_daily"].fillna(0)
 summary_df["unrealized_pnl"] = summary_df["unrealized_pnl"].fillna(0)
 
@@ -48,6 +47,7 @@ latest_date = summary_df["date"].max()
 latest_summary = summary_df[summary_df["date"] == latest_date].iloc[0]
 
 latest_portfolio = live_df[live_df["date"] == latest_date].copy()
+open_triplets = latest_portfolio["uuid"].nunique()
 
 st.title("Daily Portfolio Update")
 st.subheader(f"Date: {latest_date.date()}")
@@ -58,7 +58,7 @@ col1.metric("Total PnL", f"${latest_summary['total_pnl']:,.2f}")
 col2.metric("Daily PnL", f"${latest_summary['daily_pnl']:,.2f}")
 col3.metric("Unrealized PnL", f"${latest_summary['unrealized_pnl']:,.2f}")
 col4.metric("Total BP", f"${latest_summary['total_bp']:,.0f}")
-col5.metric("Open Triplets", f"{int(latest_summary['triplet']):,}")
+col5.metric("Open Triplets", f"{open_triplets:,}")
 
 st.divider()
 
