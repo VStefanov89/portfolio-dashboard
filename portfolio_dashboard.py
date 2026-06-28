@@ -3,20 +3,12 @@ import pandas as pd
 
 st.set_page_config(page_title="Portfolio Daily Update", layout="wide")
 
-# =========================
-# Load data
-# =========================
-
 live_df = pd.read_csv("live_signals_portfolio.csv")
 closed_df = pd.read_csv("close_signals_historycally.csv")
 
 daily_df = pd.read_csv("daily_pnl.csv")
 realized_df = pd.read_csv("realized_pnl.csv")
 unrealized_df = pd.read_csv("unrealized_pnl.csv")
-
-# =========================
-# Clean dates
-# =========================
 
 for df in [live_df, closed_df, daily_df, realized_df, unrealized_df]:
     df["date"] = pd.to_datetime(
@@ -25,10 +17,6 @@ for df in [live_df, closed_df, daily_df, realized_df, unrealized_df]:
         format="mixed"
     ).dt.normalize()
 
-# =========================
-# Keep only needed columns
-# =========================
-
 daily_df = daily_df[["date", "daily_pnl", "total_bp", "triplet"]].copy()
 
 realized_df = realized_df[["date", "NetPnL"]].copy()
@@ -36,10 +24,6 @@ realized_df = realized_df.rename(columns={"NetPnL": "realized_daily"})
 
 unrealized_df = unrealized_df[["date", "NetPnL"]].copy()
 unrealized_df = unrealized_df.rename(columns={"NetPnL": "unrealized_pnl"})
-
-# =========================
-# Build summary
-# =========================
 
 summary_df = (
     daily_df
@@ -57,74 +41,35 @@ summary_df["unrealized_pnl"] = summary_df["unrealized_pnl"].fillna(0)
 
 summary_df["realized_pnl"] = summary_df["realized_daily"].cumsum()
 
-summary_df["total_pnl"] = (
-    summary_df["realized_pnl"] + summary_df["unrealized_pnl"]
-)
-
-summary_df["cumulative_daily_pnl"] = summary_df["daily_pnl"].cumsum()
-
-# =========================
-# Latest data
-# =========================
+# Total PnL = cumulative daily PnL / equity curve
+summary_df["total_pnl"] = summary_df["daily_pnl"].cumsum()
 
 latest_date = summary_df["date"].max()
 latest_summary = summary_df[summary_df["date"] == latest_date].iloc[0]
 
 latest_portfolio = live_df[live_df["date"] == latest_date].copy()
 
-# =========================
-# Header
-# =========================
-
 st.title("Daily Portfolio Update")
 st.subheader(f"Date: {latest_date.date()}")
 
-col1, col2, col3, col4, col5, col6 = st.columns(6)
+col1, col2, col3, col4, col5 = st.columns(5)
 
-col1.metric("Daily PnL", f"${latest_summary['daily_pnl']:,.2f}")
-col2.metric("Realized PnL", f"${latest_summary['realized_pnl']:,.2f}")
+col1.metric("Total PnL", f"${latest_summary['total_pnl']:,.2f}")
+col2.metric("Daily PnL", f"${latest_summary['daily_pnl']:,.2f}")
 col3.metric("Unrealized PnL", f"${latest_summary['unrealized_pnl']:,.2f}")
-col4.metric("Total PnL", f"${latest_summary['total_pnl']:,.2f}")
-col5.metric("Total BP", f"${latest_summary['total_bp']:,.0f}")
-col6.metric("Open Triplets", f"{int(latest_summary['triplet']):,}")
+col4.metric("Total BP", f"${latest_summary['total_bp']:,.0f}")
+col5.metric("Open Triplets", f"{int(latest_summary['triplet']):,}")
 
 st.divider()
 
-# =========================
-# Summary table
-# =========================
+st.subheader("Total PnL")
+st.line_chart(summary_df.set_index("date")["total_pnl"])
 
 st.subheader("Daily Summary History")
 st.dataframe(
     summary_df.sort_values("date", ascending=False),
     width="stretch"
 )
-
-# =========================
-# Charts
-# =========================
-
-st.subheader("Daily PnL")
-st.line_chart(summary_df.set_index("date")["daily_pnl"])
-
-st.subheader("Cumulative Daily PnL")
-st.line_chart(summary_df.set_index("date")["cumulative_daily_pnl"])
-
-st.subheader("Realized PnL")
-st.line_chart(summary_df.set_index("date")["realized_pnl"])
-
-st.subheader("Unrealized PnL")
-st.line_chart(summary_df.set_index("date")["unrealized_pnl"])
-
-st.subheader("Total PnL")
-st.line_chart(summary_df.set_index("date")["total_pnl"])
-
-st.subheader("Buying Power")
-st.line_chart(summary_df.set_index("date")["total_bp"])
-
-# =========================
-# Current portfolio
-# =========================
 
 st.subheader("Current Portfolio")
 
@@ -154,14 +99,9 @@ if "calibrated_tail_p" in latest_display.columns:
 
 st.dataframe(latest_display, width="stretch")
 
-# =========================
-# Closed trades
-# =========================
-
 st.subheader("Closed Trades")
 
 closed_display = closed_df.copy()
-
 closed_cols = [c for c in show_cols if c in closed_display.columns]
 
 if len(closed_cols) > 0:
@@ -172,10 +112,6 @@ if len(closed_cols) > 0:
     st.dataframe(closed_display, width="stretch")
 else:
     st.info("No matching closed trade columns found.")
-
-# =========================
-# Risk alerts
-# =========================
 
 st.subheader("Risk Alerts")
 
