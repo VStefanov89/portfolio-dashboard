@@ -1,7 +1,240 @@
 import streamlit as st
 import pandas as pd
+import numpy as np
 
 st.set_page_config(page_title="Portfolio Daily Update", layout="wide")
+
+# =========================
+# Helper functions
+# =========================
+
+def max_drawdown(equity):
+    equity = pd.Series(equity).astype(float)
+    running_max = equity.cummax()
+    dd = equity / running_max - 1
+    dd_dollar = equity - running_max
+    return dd.min(), dd, dd_dollar.min(), dd_dollar
+
+
+def format_money(x):
+    return f"${x:,.0f}"
+
+
+def format_pct(x):
+    return f"{x:.2%}"
+
+
+def format_number(x):
+    return f"{x:,.2f}"
+
+
+def format_int(x):
+    return f"{int(x):,}"
+
+
+def strategy_statistics_from_df(
+    df,
+    starting_capital=1_000_000,
+    date_col="date",
+    pnl_col="daily_pnl",
+    bp_col="total_bp",
+    n_mc_paths=5_000,
+    random_state=42
+):
+    df = df.copy()
+    df[date_col] = pd.to_datetime(df[date_col])
+
+    daily = (
+        df.groupby(date_col)
+        .agg(
+            daily_pnl=(pnl_col, "sum"),
+            total_bp=(bp_col, "sum")
+        )
+        .reset_index()
+        .sort_values(date_col)
+    )
+
+    daily["return_on_capital"] = daily["daily_pnl"] / starting_capital
+    daily["return_on_deployed_bp"] = daily["daily_pnl"] / daily["total_bp"].replace(0, np.nan)
+    daily["bp_utilization"] = daily["total_bp"] / starting_capital
+    daily["equity"] = starting_capital + daily["daily_pnl"].cumsum()
+
+    n_days = len(daily)
+    years = n_days / 252 if n_days > 0 else np.nan
+
+    total_pnl = daily["daily_pnl"].sum()
+    total_return = daily["equity"].iloc[-1] / starting_capital - 1
+    cagr = (daily["equity"].iloc[-1] / starting_capital) ** (1 / years) - 1 if years > 0 else np.nan
+
+    ann_vol = daily["return_on_capital"].std(ddof=1) * np.sqrt(252)
+    sharpe = (
+        daily["return_on_capital"].mean()
+        / daily["return_on_capital"].std(ddof=1)
+        * np.sqrt(252)
+        if daily["return_on_capital"].std(ddof=1) != 0
+        else np.nan
+    )
+
+    max_dd, dd_series, max_dd_dollar, dd_dollar_series = max_drawdown(daily["equity"])
+
+    daily["drawdown"] = dd_series
+    daily["drawdown_dollar"] = dd_dollar_series
+
+    gross_profit = daily.loc[daily["daily_pnl"] > 0, "daily_pnl"].sum()
+    gross_loss = daily.loc[daily["daily_pnl"] < 0, "daily_pnl"].sum()
+
+    profit_factor = gross_profit / abs(gross_loss) if gross_loss != 0 else np.inf
+
+    summary = pd.Series({
+        "n_days": n_days,
+        "starting_capital": starting_capital,
+        "ending_equity": daily["equity"].iloc[-1],
+        "total_pnl": total_pnl,
+        "total_return": total_return,
+        "cagr": cagr,
+        "annualized_volatility": ann_vol,
+        "sharpe": sharpe,
+        "max_drawdown": max_dd,
+        "max_drawdown_dollar": max_dd_dollar,
+        "win_rate_days": (daily["daily_pnl"] > 0).mean(),
+        "profit_factor": profit_factor,
+        "avg_daily_pnl": daily["daily_pnl"].mean(),
+        "median_daily_pnl": daily["daily_pnl"].median(),
+        "best_day": daily["daily_pnl"].max(),
+        "worst_day": daily["daily_pnl"].min(),
+        "avg_bp_utilization": daily["bp_utilization"].mean(),
+        "median_bp_utilization": daily["bp_utilization"].median(),
+        "max_bp_utilization": daily["bp_utilization"].max(),
+        "avg_deployed_return": daily["return_on_deployed_bp"].mean(),
+    })
+
+    rng = np.random.default_rng(random_state)
+    daily_returns = daily["return_on_capital"].to_numpy()
+
+    mc_rows = []
+
+    for _ in range(n_mc_paths):
+        sampled_returns = rng.choice(daily_returns, size=n_days, replace=True)
+        path_equity = starting_capital * np.cumprod(1 + sampled_returns)
+
+        path_total_return = path_equity[-1] / starting_capital - 1
+        path_cagr = (path_equity[-1] / starting_capital) ** (1 / years) - 1
+
+        path_max_dd, _, path_max_dd_dollar, _ = max_drawdown(path_equity)
+
+        path_std = sampled_returns.std(ddof=1)
+        path_sharpe = (
+            sampled_returns.mean() / path_std * np.sqrt(252)
+            if path_std != 0
+            else np.nan
+        )
+
+        mc_rows.append({
+            "final_equity": path_equity[-1],
+            "total_return": path_total_return,
+            "cagr": path_cagr,
+            "max_drawdown": path_max_dd,
+            "max_drawdown_dollar": path_max_dd_dollar,
+            "sharpe": path_sharpe
+        })
+
+    mc = pd.DataFrame(mc_rows)
+
+    mc_summary = pd.DataFrame({
+        "p5": mc.quantile(0.05),
+        "median": mc.quantile(0.50),
+        "p95": mc.quantile(0.95)
+    })
+
+    risk_probs = pd.Series({
+        "prob_losing_money": (mc["total_return"] < 0).mean(),
+        "prob_drawdown_worse_than_5pct": (mc["max_drawdown"] < -0.05).mean(),
+        "prob_drawdown_worse_than_10pct": (mc["max_drawdown"] < -0.10).mean(),
+        "prob_return_above_20pct": (mc["total_return"] > 0.20).mean(),
+        "prob_return_above_30pct": (mc["total_return"] > 0.30).mean(),
+    })
+
+    friendly_summary = pd.DataFrame({
+        "Metric": [
+            "Trading Days", "Starting Capital", "Ending Equity", "Total PnL",
+            "Total Return", "CAGR", "Annualized Volatility", "Sharpe Ratio",
+            "Maximum Drawdown", "Maximum Drawdown ($)", "Winning Days",
+            "Profit Factor", "Average Daily PnL", "Median Daily PnL",
+            "Best Day", "Worst Day", "Average BP Utilization",
+            "Median BP Utilization", "Maximum BP Utilization",
+            "Average Deployed Return"
+        ],
+        "Value": [
+            format_int(summary["n_days"]),
+            format_money(summary["starting_capital"]),
+            format_money(summary["ending_equity"]),
+            format_money(summary["total_pnl"]),
+            format_pct(summary["total_return"]),
+            format_pct(summary["cagr"]),
+            format_pct(summary["annualized_volatility"]),
+            format_number(summary["sharpe"]),
+            format_pct(summary["max_drawdown"]),
+            format_money(summary["max_drawdown_dollar"]),
+            format_pct(summary["win_rate_days"]),
+            format_number(summary["profit_factor"]) + "x",
+            format_money(summary["avg_daily_pnl"]),
+            format_money(summary["median_daily_pnl"]),
+            format_money(summary["best_day"]),
+            format_money(summary["worst_day"]),
+            format_pct(summary["avg_bp_utilization"]),
+            format_pct(summary["median_bp_utilization"]),
+            format_pct(summary["max_bp_utilization"]),
+            format_pct(summary["avg_deployed_return"]),
+        ]
+    })
+
+    friendly_mc_summary = mc_summary.copy()
+
+    for row in friendly_mc_summary.index:
+        for col in friendly_mc_summary.columns:
+            val = friendly_mc_summary.loc[row, col]
+
+            if row in ["final_equity", "max_drawdown_dollar"]:
+                friendly_mc_summary.loc[row, col] = format_money(val)
+            elif row in ["total_return", "cagr", "max_drawdown"]:
+                friendly_mc_summary.loc[row, col] = format_pct(val)
+            elif row == "sharpe":
+                friendly_mc_summary.loc[row, col] = format_number(val)
+
+    friendly_mc_summary = (
+        friendly_mc_summary
+        .reset_index()
+        .rename(columns={
+            "index": "Metric",
+            "p5": "P5",
+            "median": "Median",
+            "p95": "P95"
+        })
+    )
+
+    friendly_risk_probs = pd.DataFrame({
+        "Metric": [
+            "Probability of Losing Money",
+            "Probability DD Worse Than -5%",
+            "Probability DD Worse Than -10%",
+            "Probability Return Above 20%",
+            "Probability Return Above 30%",
+        ],
+        "Value": [
+            format_pct(risk_probs["prob_losing_money"]),
+            format_pct(risk_probs["prob_drawdown_worse_than_5pct"]),
+            format_pct(risk_probs["prob_drawdown_worse_than_10pct"]),
+            format_pct(risk_probs["prob_return_above_20pct"]),
+            format_pct(risk_probs["prob_return_above_30pct"]),
+        ]
+    })
+
+    return daily, summary, mc, mc_summary, risk_probs, friendly_summary, friendly_mc_summary, friendly_risk_probs
+
+
+# =========================
+# Load data
+# =========================
 
 live_df = pd.read_csv("live_signals_portfolio.csv")
 closed_df = pd.read_csv("close_signals_historycally.csv")
@@ -25,6 +258,10 @@ realized_df = realized_df.rename(columns={"NetPnL": "realized_daily"})
 unrealized_df = unrealized_df[["date", "NetPnL"]].copy()
 unrealized_df = unrealized_df.rename(columns={"NetPnL": "unrealized_pnl"})
 
+# =========================
+# Build summary
+# =========================
+
 summary_df = (
     daily_df
     .merge(realized_df, on="date", how="left")
@@ -39,15 +276,38 @@ summary_df["realized_daily"] = summary_df["realized_daily"].fillna(0)
 summary_df["unrealized_pnl"] = summary_df["unrealized_pnl"].fillna(0)
 
 summary_df["realized_pnl"] = summary_df["realized_daily"].cumsum()
-
-# Total PnL = cumulative daily PnL / equity curve
 summary_df["total_pnl"] = summary_df["daily_pnl"].cumsum()
+
+# =========================
+# Strategy statistics
+# =========================
+
+starting_capital = 3_000_000
+
+(
+    stats_daily,
+    stats_summary,
+    mc,
+    mc_summary,
+    risk_probs,
+    friendly_summary,
+    friendly_mc_summary,
+    friendly_risk_probs
+) = strategy_statistics_from_df(
+    daily_df,
+    starting_capital=starting_capital,
+    n_mc_paths=5_000
+)
 
 latest_date = summary_df["date"].max()
 latest_summary = summary_df[summary_df["date"] == latest_date].iloc[0]
 
 latest_portfolio = live_df[live_df["date"] == latest_date].copy()
 open_triplets = latest_portfolio["uuid"].nunique()
+
+# =========================
+# Header
+# =========================
 
 st.title("Daily Portfolio Update")
 st.subheader(f"Date: {latest_date.date()}")
@@ -62,14 +322,55 @@ col5.metric("Open Triplets", f"{open_triplets:,}")
 
 st.divider()
 
+# =========================
+# Total PnL graph
+# =========================
+
 st.subheader("Total PnL")
 st.line_chart(summary_df.set_index("date")["total_pnl"])
 
+# =========================
+# Strategy statistics
+# =========================
+
+st.subheader("Strategy Statistics")
+
+st.dataframe(
+    friendly_summary,
+    width="stretch",
+    hide_index=True
+)
+
+st.subheader("Monte Carlo Summary")
+
+st.dataframe(
+    friendly_mc_summary,
+    width="stretch",
+    hide_index=True
+)
+
+st.subheader("Risk Probabilities")
+
+st.dataframe(
+    friendly_risk_probs,
+    width="stretch",
+    hide_index=True
+)
+
+# =========================
+# Daily summary
+# =========================
+
 st.subheader("Daily Summary History")
+
 st.dataframe(
     summary_df.sort_values("date", ascending=False),
     width="stretch"
 )
+
+# =========================
+# Current portfolio
+# =========================
 
 st.subheader("Current Portfolio")
 
@@ -99,6 +400,10 @@ if "calibrated_tail_p" in latest_display.columns:
 
 st.dataframe(latest_display, width="stretch")
 
+# =========================
+# Closed trades
+# =========================
+
 st.subheader("Closed Trades")
 
 closed_display = closed_df.copy()
@@ -112,6 +417,10 @@ if len(closed_cols) > 0:
     st.dataframe(closed_display, width="stretch")
 else:
     st.info("No matching closed trade columns found.")
+
+# =========================
+# Risk alerts
+# =========================
 
 st.subheader("Risk Alerts")
 
