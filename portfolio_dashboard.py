@@ -188,19 +188,28 @@ def strategy_statistics_from_df(
         ]
     })
 
-    friendly_mc_summary = mc_summary.copy()
-
+    # =========================
+    # Friendly Monte Carlo summary
+    # =========================
+    
+    friendly_mc_summary = mc_summary.copy().astype(object)
+    
     for row in friendly_mc_summary.index:
         for col in friendly_mc_summary.columns:
-            val = friendly_mc_summary.loc[row, col]
-
-            if row in ["final_equity", "max_drawdown_dollar"]:
+    
+            val = mc_summary.loc[row, col]
+    
+            if pd.isna(val):
+                friendly_mc_summary.loc[row, col] = ""
+            elif row in ["final_equity", "max_drawdown_dollar"]:
                 friendly_mc_summary.loc[row, col] = format_money(val)
             elif row in ["total_return", "cagr", "max_drawdown"]:
                 friendly_mc_summary.loc[row, col] = format_pct(val)
             elif row == "sharpe":
                 friendly_mc_summary.loc[row, col] = format_number(val)
-
+            else:
+                friendly_mc_summary.loc[row, col] = format_number(val)
+    
     friendly_mc_summary = (
         friendly_mc_summary
         .reset_index()
