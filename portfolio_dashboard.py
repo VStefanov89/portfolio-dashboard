@@ -400,26 +400,35 @@ st.divider()
 # Total PnL graph
 # =========================
 
+
+pnl_chart = summary_df[["date", "total_pnl"]].copy()
+pnl_chart["date"] = pnl_chart["date"].dt.date
+
 st.subheader("Total PnL")
-st.line_chart(summary_df.set_index("date")["total_pnl"])
+st.line_chart(pnl_chart.set_index("date"))
 
 # =========================
 # Strategy vs SPY graph
 # =========================
 
 if {"strategy_equity", "spy_equity"}.issubset(summary_df.columns):
-    st.subheader("Strategy vs SPY")
 
-    equity_compare = (
-        summary_df[["date", "strategy_equity", "spy_equity"]]
-        .set_index("date")
-        .rename(columns={
+    comparison_df = summary_df[
+        ["date", "strategy_equity", "spy_equity"]
+    ].copy()
+
+    comparison_df["date"] = comparison_df["date"].dt.date
+
+    comparison_df = comparison_df.set_index("date").rename(
+        columns={
             "strategy_equity": "Strategy",
             "spy_equity": "SPY"
-        })
+        }
     )
 
-    st.line_chart(equity_compare)
+    st.subheader("Strategy vs SPY")
+    st.line_chart(comparison_df)
+
 else:
     st.info("strategy_equity and/or spy_equity columns not found in daily_pnl.csv")
 
