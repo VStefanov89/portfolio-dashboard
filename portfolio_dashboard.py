@@ -72,7 +72,6 @@ def strategy_statistics_from_df(
     )
 
     ret_std = daily["return_on_capital"].std(ddof=1)
-
     ann_vol = ret_std * np.sqrt(252)
 
     sharpe = (
@@ -311,7 +310,9 @@ needed_cols = [
     "closed_triplets",
     "realized_bp",
     "daily_pnl",
-    "total_pnl"
+    "total_pnl",
+    "strategy_equity",
+    "spy_equity"
 ]
 
 existing_needed_cols = [c for c in needed_cols if c in daily_df.columns]
@@ -327,16 +328,18 @@ numeric_cols = [
     "closed_triplets",
     "realized_bp",
     "daily_pnl",
-    "total_pnl"
+    "total_pnl",
+    "strategy_equity",
+    "spy_equity"
 ]
 
 for col in numeric_cols:
     if col in summary_df.columns:
         summary_df[col] = pd.to_numeric(summary_df[col], errors="coerce").fillna(0)
 
-summary_df["open_triplets"] = summary_df["open_triplets"].astype(int)
+if "open_triplets" in summary_df.columns:
+    summary_df["open_triplets"] = summary_df["open_triplets"].astype(int)
 
-# If total_pnl/cum_pnl is missing for any reason, rebuild from daily_pnl
 if "total_pnl" not in summary_df.columns:
     summary_df["total_pnl"] = summary_df["daily_pnl"].cumsum()
 
@@ -370,8 +373,11 @@ latest_summary = summary_df[summary_df["date"] == latest_date].iloc[0]
 
 latest_portfolio = live_df[live_df["date"] == latest_date].copy()
 
-# Use daily_pnl.csv open_triplets as primary source
-open_triplets = int(latest_summary["open_triplets"])
+open_triplets = (
+    int(latest_summary["open_triplets"])
+    if "open_triplets" in latest_summary.index
+    else latest_portfolio["uuid"].nunique()
+)
 
 # =========================
 # Header
@@ -396,6 +402,26 @@ st.divider()
 
 st.subheader("Total PnL")
 st.line_chart(summary_df.set_index("date")["total_pnl"])
+
+# =========================
+# Strategy vs SPY graph
+# =========================
+
+if {"strategy_equity", "spy_equity"}.issubset(summary_df.columns):
+    st.subheader("Strategy vs SPY")
+
+    equity_compare = (
+        summary_df[["date", "strategy_equity", "spy_equity"]]
+        .set_index("date")
+        .rename(columns={
+            "strategy_equity": "Strategy",
+            "spy_equity": "SPY"
+        })
+    )
+
+    st.line_chart(equity_compare)
+else:
+    st.info("strategy_equity and/or spy_equity columns not found in daily_pnl.csv")
 
 # =========================
 # Strategy statistics
