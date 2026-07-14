@@ -1,6 +1,32 @@
 import streamlit as st
+import boto3
 import pandas as pd
 import numpy as np
+from io import BytesIO
+
+
+BUCKET = st.secrets["aws"]["vasil-mean-reversion"]
+
+
+@st.cache_data(ttl=60)
+def read_csv_from_s3(key):
+    s3 = boto3.client(
+        "s3",
+        aws_access_key_id=st.secrets["aws"]["access_key_id"],
+        aws_secret_access_key=st.secrets["aws"]["secret_access_key"],
+        region_name=st.secrets["aws"]["region"]
+    )
+
+    response = s3.get_object(
+        Bucket=BUCKET,
+        Key=key
+    )
+
+    return pd.read_csv(
+        BytesIO(response["Body"].read())
+    )
+
+
 
 st.set_page_config(page_title="Portfolio Daily Update", layout="wide")
 
@@ -277,9 +303,22 @@ def strategy_statistics_from_df(
 # Load data
 # =========================
 
-live_df = pd.read_csv("live_signals_portfolio.csv")
-closed_df = pd.read_csv("close_signals_historycally.csv")
-daily_df = pd.read_csv("daily_pnl.csv")
+live_df = read_csv_from_s3(
+    "dashboard/live_signals_portfolio.csv"
+)
+
+closed_df = read_csv_from_s3(
+    "dashboard/close_signals_historycally.csv"
+)
+
+daily_df = read_csv_from_s3(
+    "dashboard/daily_pnl.csv"
+)
+
+
+# live_df = pd.read_csv("live_signals_portfolio.csv")
+# closed_df = pd.read_csv("close_signals_historycally.csv")
+# daily_df = pd.read_csv("daily_pnl.csv")
 
 for df in [live_df, closed_df, daily_df]:
     df["date"] = pd.to_datetime(
