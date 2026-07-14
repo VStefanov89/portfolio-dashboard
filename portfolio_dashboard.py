@@ -5,7 +5,7 @@ import numpy as np
 from io import BytesIO
 
 
-BUCKET = st.secrets["aws"]["vasil-mean-reversion"]
+BUCKET = st.secrets["aws"]["bucket_name"]
 
 
 @st.cache_data(ttl=60)
