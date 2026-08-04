@@ -1038,7 +1038,7 @@ def render_live_dashboard():
         f"{local_daily_timestamp:%Y-%m-%d %H:%M:%S %Z}"
     )
 
-   metric_col1, metric_col2, metric_col3, metric_col4, metric_col5, metric_col6 = (
+    metric_col1, metric_col2, metric_col3, metric_col4, metric_col5, metric_col6 = (
     st.columns(6)
     )
     
@@ -1047,30 +1047,30 @@ def render_live_dashboard():
         f"${latest_summary.get('daily_pnl', 0):,.2f}",
     )
 
-metric_col2.metric(
-    "Total PnL",
-    f"${latest_summary.get('total_pnl', 0):,.2f}",
-)
+    metric_col2.metric(
+        "Total PnL",
+        f"${latest_summary.get('total_pnl', 0):,.2f}",
+    )
 
-metric_col3.metric(
-    "Realized PnL",
-    f"${realized_pnl:,.2f}",
-)
+    metric_col3.metric(
+        "Realized PnL",
+        f"${realized_pnl:,.2f}",
+    )
 
-metric_col4.metric(
-    "Unrealized PnL",
-    f"${unrealized_pnl:,.2f}",
-)
+    metric_col4.metric(
+        "Unrealized PnL",
+        f"${unrealized_pnl:,.2f}",
+    )
 
-metric_col5.metric(
-    "Total BP",
-    f"${latest_summary.get('total_bp', 0):,.0f}",
-)
-
-metric_col6.metric(
-    "Open Triplets",
-    f"{open_triplets:,}",
-)
+    metric_col5.metric(
+        "Total BP",
+        f"${latest_summary.get('total_bp', 0):,.0f}",
+    )
+    
+    metric_col6.metric(
+        "Open Triplets",
+        f"{open_triplets:,}",
+    )
 
     st.divider()
 
