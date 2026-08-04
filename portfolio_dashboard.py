@@ -991,9 +991,35 @@ def render_live_dashboard():
         )
     )
 
-    # ========================================================
+      # ========================================================
     # Header
     # ========================================================
+
+    # Current unrealized PnL (open positions)
+    unrealized_pnl = (
+        pd.to_numeric(
+            latest_portfolio["NetPnL"],
+            errors="coerce",
+        ).fillna(0).sum()
+        if (
+            not latest_portfolio.empty
+            and "NetPnL" in latest_portfolio.columns
+        )
+        else 0.0
+    )
+
+    # Total realized PnL (closed positions)
+    realized_pnl = (
+        pd.to_numeric(
+            closed_df["NetPnL"],
+            errors="coerce",
+        ).fillna(0).sum()
+        if (
+            not closed_df.empty
+            and "NetPnL" in closed_df.columns
+        )
+        else 0.0
+    )
 
     st.title(
         "Daily Portfolio Update"
@@ -1022,18 +1048,13 @@ def render_live_dashboard():
     )
 
     metric_col2.metric(
-        "Daily PnL",
-        f"${latest_summary.get('daily_pnl', 0):,.2f}",
+        "Realized PnL",
+        f"${realized_pnl:,.2f}",
     )
 
     metric_col3.metric(
-        "Unrealized Daily PnL",
-        (
-            f"${latest_summary.get(
-                'unrealized_daily_pnl',
-                0
-            ):,.2f}"
-        ),
+        "Unrealized PnL",
+        f"${unrealized_pnl:,.2f}",
     )
 
     metric_col4.metric(
