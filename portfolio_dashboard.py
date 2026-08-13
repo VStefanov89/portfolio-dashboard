@@ -1253,6 +1253,8 @@ def render_live_dashboard():
         "uuid",
         "triplet",
         "calibrated_tail_p",
+        "deterioration_decile",
+        "remove_reason",
         "sector_triplet",
         "industry_triplet",
         "GrossPnL",
