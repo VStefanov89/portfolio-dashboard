@@ -1252,6 +1252,7 @@ def render_live_dashboard():
         "date",
         "uuid",
         "triplet",
+        "t",
         "calibrated_tail_p",
         "deterioration_decile",
         "remove_reason",
