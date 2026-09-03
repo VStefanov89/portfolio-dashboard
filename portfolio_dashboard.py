@@ -482,7 +482,7 @@ def strategy_statistics_from_df(
         {
             "Metric": [
                 "Trading Days",
-                "Starting Capital",
+                "Capital Base (Max Historical BP)",
                 "Ending Equity",
                 "Total PnL",
                 "Total Return",
@@ -818,6 +818,31 @@ def render_portfolio_view(
         st.info(f"No valid daily summary rows found for {portfolio_name}.")
         return
 
+    # ========================================================
+    # Statistics capital base
+    # ========================================================
+    # Use the maximum BP ever observed for this portfolio view as the
+    # capital base for all capital-dependent statistics. Because summary_df
+    # contains the full history loaded from daily_pnl.csv, this value will
+    # not fall when today's deployed BP is lower than a previous peak.
+    #
+    # Examples:
+    #   Portfolio A: max historical BP = $4m -> stats stay based on $4m
+    #   even if today's BP falls to $3m.
+    #   Combined: total_bp is already aggregated across portfolios by date,
+    #   so this becomes the maximum combined BP observed on any one date.
+    statistics_capital_base = pd.to_numeric(
+        summary_df["total_bp"],
+        errors="coerce",
+    ).max()
+
+    # Defensive fallback for an empty/invalid/zero BP history.
+    if (
+        pd.isna(statistics_capital_base)
+        or statistics_capital_base <= 0
+    ):
+        statistics_capital_base = STARTING_CAPITAL
+
     (
         stats_daily,
         stats_summary,
@@ -829,7 +854,7 @@ def render_portfolio_view(
         friendly_risk_probs,
     ) = strategy_statistics_from_df(
         summary_df[["date", "daily_pnl", "total_bp"]],
-        starting_capital=STARTING_CAPITAL,
+        starting_capital=float(statistics_capital_base),
         n_mc_paths=5_000,
     )
 
